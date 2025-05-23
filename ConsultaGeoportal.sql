@@ -4,6 +4,8 @@ where obsusoinfo like "%coordenada obscurecida%" or obsusoinfo like "%generaliza
 
 /*agregar un campo de tipo booleano donde se marquen las coordenadas obscurecidas.*/
 
+-- agregado 2025-05-23 prueba git
+
 
 DELIMITER $$
 -- Revisar que la _TTN_snib estae completa.
