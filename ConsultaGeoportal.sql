@@ -2,11 +2,6 @@ select count(1)
 from snib.informaciongeoportal_siya
 where obsusoinfo like "%coordenada obscurecida%" or obsusoinfo like "%generalizada%"
 
-/*agregar un campo de tipo booleano donde se marquen las coordenadas obscurecidas.*/
-
--- agregado 2025-05-23 prueba git
-
-
 DELIMITER $$
 -- Revisar que la _TTN_snib estae completa.
 DROP PROCEDURE IF EXISTS `geoportal_trabajo`.`02_generatablaInformacionGeoportal` $$
@@ -957,6 +952,16 @@ where institucion = "NO APLICA NO APLICA";
 update snib.informaciongeoportal_siya
 set institucion = "NO DISPONIBLE"
 where institucion IN("NO DISPONIBLE NO PROPORCIONADO","NO DISPONIBLE NO DISPONIBLE");
+
+-- agregado el 2026-03-06 para atender el JIRA2-834, quitar NO DISPONIBLE, NO APLICA, NO PROPORCIONADO Y REVISADO  de los campos coleccion e institucion
+update snib.informaciongeoportal_siya
+set coleccion = ""
+where coleccion IN("NO DISPONIBLE","NO PROPORCIONADO","NO APLICA","REVISADO");
+
+update snib.informaciongeoportal_siya
+set institucion = ""
+where institucion IN("NO DISPONIBLE","NO PROPORCIONADO","NO APLICA","REVISADO");
+
 
 /*update snib.informaciongeoportal_siya
 set geoportal=false;*/
