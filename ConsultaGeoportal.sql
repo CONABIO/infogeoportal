@@ -2,6 +2,9 @@ select count(1)
 from snib.informaciongeoportal_siya
 where obsusoinfo like "%coordenada obscurecida%" or obsusoinfo like "%generalizada%"
 
+-- Leer antes de empezar
+-- Modificar scrip para que la tabla que creamos se llame informaciongeoportal_siya2 y al final renombramos las tablas, para no trabar el servidor..
+
 DELIMITER $$
 -- Revisar que la _TTN_snib estae completa.
 DROP PROCEDURE IF EXISTS `geoportal_trabajo`.`02_generatablaInformacionGeoportal` $$
@@ -195,8 +198,9 @@ ALTER TABLE geoportal_trabajo.EjemplarColeccionNomComun add index uno(llaveejemp
 
 /* Creamos la tabla EjemplarVegetacionINEGI , para armar el campo usvINEGI se toma el ultimo codigo válido, en este caso es el de serie VII*/
 create table geoportal_trabajo.EjemplarVegetacionINEGI
-SELECT e.llaveejemplar, si.despveg AS usvserieI, sii.despveg AS usvserieII, siii.despveg AS usvserieIII, siv.despveg AS usvserieIV,sINEGI.despecov as usvINEGI
+SELECT e.llaveejemplar, si.despveg AS usvserieI, sii.despveg AS usvserieII, siii.despveg AS usvserieIII, siv.despveg AS usvserieIV,sINEGI.despecov as usvINEGI,if(t.revisionSIB='correcto',t.tipovegetacion,'') as tipovegetacion
 FROM snib.ejemplar_curatorial e inner join snib.conabiogeografia r on e.llaveregionsitiosig=r.llaveregionsitiosig
+inner join snib.tipovegetacion t using(idtipovegetacion)
 LEFT JOIN snib.usv_INEGI as si ON r.usvsIcodigo = si.usvsnum 
 LEFT JOIN snib.usv_INEGI AS sii ON r.usvsIIcodigo = sii.usvsnum 
 LEFT JOIN snib.usv_INEGI AS siii ON r.usvsIIIcodigo = siii.usvsnum
@@ -211,7 +215,8 @@ MODIFY COLUMN `usvserieI` VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_general_c
 MODIFY COLUMN `usvserieII` VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_general_ci,
 MODIFY COLUMN `usvserieIII` VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_general_ci,
 MODIFY COLUMN `usvserieIV` VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_general_ci,
-MODIFY COLUMN `usvINEGI` VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_general_ci;
+MODIFY COLUMN `usvINEGI` VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_general_ci,
+MODIFY COLUMN `tipovegetacion` VARCHAR(255) CHARACTER SET utf8 COLLATE utf8_general_ci;
 
 
 /* Actualizamos los valores NO EMPATA a null */
@@ -404,7 +409,7 @@ ALTER TABLE geoportal_trabajo.ejemplar_referenciatax ADD PRIMARY KEY(llaveejempl
 /* De Aqui en adelante se crea la tabla informaciongeoportal_siya */
 CREATE TABLE snib.informaciongeoportal_siya (
   `idejemplar` varchar(32) NOT NULL DEFAULT '' COMMENT 'Clave generada por la CONABIO que identifica de manera única al ejemplar. Se asigna en el momento en que el ejemplar se integra al SNIB.',
-  `region` varchar(150) NOT NULL DEFAULT '' COMMENT 'Especifica el país, estado y municipio o su división política equivalente, registrado por el colector, observador o por la CONABIO (para aquellos ejemplares que ha georreferido).',
+  `region` varchar(255) NOT NULL DEFAULT '' COMMENT 'Especifica el país, estado y municipio o su división política equivalente, registrado por el colector, observador o por la CONABIO (para aquellos ejemplares que ha georreferido).',
   `localidad` varchar(2048) NOT NULL DEFAULT '' COMMENT 'Referencia geográfica que describe la ubicación del lugar de recolecta u observación.',
   `longitud` double DEFAULT NULL COMMENT 'Longitud de la coordenada geográfica del sitio de recolecta u observación del ejemplar.',
   `latitud` double DEFAULT NULL COMMENT 'Latitud de la coordenada geográfica del sitio de recolecta u observación del ejemplar.',
@@ -434,6 +439,7 @@ CREATE TABLE snib.informaciongeoportal_siya (
   `usvserieVII` varchar(100) NOT NULL DEFAULT '' COMMENT 'Especifica el tipo de vegetación y uso del suelo donde se ubica la coordenada geográfica de acuerdo con el mapa serie VII del INEGI.',
   `usvINEGI` varchar(100) NOT NULL DEFAULT '' COMMENT 'Nombre del tipo de vegetación según el sistema de Rzedowski o descriptor de la actividad humana.',
   `vegetacionserenanalcms` varchar(70) NOT NULL DEFAULT '' COMMENT 'Vegetación para paises de snib sin fronteras',
+  `tipovegetacion` varchar(255) NOT NULL DEFAULT '' COMMENT '',
   `idanpfederal1` mediumint(8) unsigned DEFAULT NULL COMMENT 'Identificador de la Área Natural Protegida (ANP) asociada al ejemplar.',
   `idanpfederal2` mediumint(8) unsigned DEFAULT NULL COMMENT 'Identificador de la segunda Área Natural Protegida (ANP) asociada al ejemplar.',
   `anp` varchar(250) NOT NULL DEFAULT '' COMMENT 'Especifica la jurisdicción y nombre del área natural protegida (ANP) donde se ubica la coordenada geográfica registrada para el ejemplar respecto a mapas de México de ANP.' ,
@@ -542,22 +548,25 @@ CREATE TABLE snib.informaciongeoportal_siya (
   `geoportal` tinyint(1) DEFAULT NULL COMMENT 'Indica si la información del ejemplar esta publicada en el geoportal.',
   `ultimafechaactualizacion` date DEFAULT NULL COMMENT 'Fecha de última actualización de los datos.',
   `version` varchar(7) NOT NULL DEFAULT '' COMMENT 'Versión que corresponde a las decisiones de los procesos de revisión aplicados a los datos en la CONABIO, así como, la información de referencia (mapas, catálogos, etc.) que se utiliza para realizar dicha revisión al integrar al SNIB. Cada vez que se cambien estás decisiones afectando la revisión de los datos, se cambiará la versión y se publicará el documento que describe los nuevos procesos y referencias correspondientes a la versión citada en este campo.',
-  `paisoriginal` varchar(50) NOT NULL DEFAULT '' COMMENT 'Nombre del país en el que el ejemplar fue recolectado u observado.',
-  `estadooriginal` varchar(55) NOT NULL DEFAULT '' COMMENT 'Nombre del estado o división política equivalente en la que el ejemplar fue recolectado u observado.',
-  `municipiooriginal` varchar(80) NOT NULL DEFAULT '' COMMENT 'Nombre del municipio en el que el ejemplar fue recolectado u observado.',
-  `llavecontrolcambios` varchar(32) NOT NULL DEFAULT ''
+  `paisoriginal` varchar(60) NOT NULL DEFAULT '' COMMENT 'Nombre del país en el que el ejemplar fue recolectado u observado.',
+  `estadooriginal` varchar(60) NOT NULL DEFAULT '' COMMENT 'Nombre del estado o división política equivalente en la que el ejemplar fue recolectado u observado.',
+  `municipiooriginal` varchar(100) NOT NULL DEFAULT '' COMMENT 'Nombre del municipio en el que el ejemplar fue recolectado u observado.',
+  `llavecontrolcambios` varchar(32) NOT NULL DEFAULT '',
+  `coordenadaobs` tinyint NOT NULL DEFAULT 0,
+  `cuencahidrograficamapa` varchar(100) NOT NULL DEFAULT '',
+  `ecorregionterrestremapa` varchar(200) NOT NULL DEFAULT ''
 ) ENGINE=Aria DEFAULT CHARSET=utf8 COMMENT='En esta tabla se almacenan los datos de la base de individuos proporcionados a la Subcoordinadora en Información y Análisis.';
 
 /* Nuevo agregado el 01/02/2023 para evitar generar dos veces la misma tabla */
 
-insert into snib.informaciongeoportal_siya(idejemplar,region,localidad,longitud,latitud,datum,geovalidacion,paismapa,idestadomapa,claveestadomapa,estadomapa,mt24idestadomapa,mt24claveestadomapa,mt24nombreestadomapa,idmunicipiomapa,clavemunicipiomapa,municipiomapa,mt24idmunicipiomapa,mt24clavemunicipiomapa,mt24nombremunicipiomapa,incertidumbreXY,altitudmapa,usvserieI,usvserieII,usvserieIII,usvserieIV,usvserieV,usvserieVI,usvserieVII,usvINEGI,vegetacionserenanalcms,idanpfederal1,idanpfederal2,anp,grupobio,subgrupobio,formadecrecimiento,idnombrecatvalido,idnombrecat,endemismo,ambiente,validacionambiente,reino,phylumdivision,clase,orden,familia,genero,especie,calificadordeterminacion,categoriainfraespecie,categoriainfraespecie2,autor,estatustax,reftax,taxonvalidado,reinovalido,phylumdivisionvalido,clasevalida,ordenvalido,familiavalida,generovalido,especievalida,categoriainfraespecievalida,categoriainfraespecie2valida,especievalidabusqueda,autorvalido,reftaxvalido,categoriavalidocatscat,nombrevalidocatscat,taxonextinto,ejemplarfosil,nombrecomun,categoriaresidenciaaves,prioritaria,nivelprioridad,exoticainvasora,nom059,cites,iucn,coleccion,institucion,paiscoleccion,numcatalogo,numcolecta,procedenciaejemplar,determinador,fechadeterminacion,diadeterminacion,mesdeterminacion,aniodeterminacion,colector,fechacolecta,diacolecta,mescolecta,aniocolecta,tipo,obsusoinfo,probablelocnodecampo,zonamapa,paiscodvalidacion,edocodvalidacion,mpiocodvalidacion,localidadcodvalidacion,cuarentena,proyecto,clavebasedatos,identificacionarchivo,fuenteoriginal,urlejemplar,urlorigen,licenciauso,tiporestriccion,comentarioscat,comentarioscatvalido,homonimosgenero,homonimosespecie,homonimosinfraespecie,homonimosgenerocatvalido,homonimosespeciecatvalido,homonimosinfraespeciecatvalido,distribucionnom2010,idmias,regionmarinamapa,nombrerasgogeograficomapa,tiporasgogeograficomapa,mt24mapa,noaplicavegetacionmapa,distmpio,codificacion,procesovalidacion,estadoregistro,fuente,formadecitar,urlproyecto,categoriataxonomica,geoportal,ultimafechaactualizacion,version,paisoriginal,estadooriginal,municipiooriginal,llavecontrolcambios)
+insert into snib.informaciongeoportal_siya(idejemplar,region,localidad,longitud,latitud,datum,geovalidacion,paismapa,idestadomapa,claveestadomapa,estadomapa,mt24idestadomapa,mt24claveestadomapa,mt24nombreestadomapa,idmunicipiomapa,clavemunicipiomapa,municipiomapa,mt24idmunicipiomapa,mt24clavemunicipiomapa,mt24nombremunicipiomapa,incertidumbreXY,altitudmapa,usvserieI,usvserieII,usvserieIII,usvserieIV,usvserieV,usvserieVI,usvserieVII,usvINEGI,vegetacionserenanalcms,tipovegetacion,idanpfederal1,idanpfederal2,anp,grupobio,subgrupobio,formadecrecimiento,idnombrecatvalido,idnombrecat,endemismo,ambiente,validacionambiente,reino,phylumdivision,clase,orden,familia,genero,especie,calificadordeterminacion,categoriainfraespecie,categoriainfraespecie2,autor,estatustax,reftax,taxonvalidado,reinovalido,phylumdivisionvalido,clasevalida,ordenvalido,familiavalida,generovalido,especievalida,categoriainfraespecievalida,categoriainfraespecie2valida,especievalidabusqueda,autorvalido,reftaxvalido,categoriavalidocatscat,nombrevalidocatscat,taxonextinto,ejemplarfosil,nombrecomun,categoriaresidenciaaves,prioritaria,nivelprioridad,exoticainvasora,nom059,cites,iucn,coleccion,institucion,paiscoleccion,numcatalogo,numcolecta,procedenciaejemplar,determinador,fechadeterminacion,diadeterminacion,mesdeterminacion,aniodeterminacion,colector,fechacolecta,diacolecta,mescolecta,aniocolecta,tipo,obsusoinfo,probablelocnodecampo,zonamapa,paiscodvalidacion,edocodvalidacion,mpiocodvalidacion,localidadcodvalidacion,cuarentena,proyecto,clavebasedatos,identificacionarchivo,fuenteoriginal,urlejemplar,urlorigen,licenciauso,tiporestriccion,comentarioscat,comentarioscatvalido,homonimosgenero,homonimosespecie,homonimosinfraespecie,homonimosgenerocatvalido,homonimosespeciecatvalido,homonimosinfraespeciecatvalido,distribucionnom2010,idmias,regionmarinamapa,nombrerasgogeograficomapa,tiporasgogeograficomapa,mt24mapa,noaplicavegetacionmapa,distmpio,codificacion,procesovalidacion,estadoregistro,fuente,formadecitar,urlproyecto,categoriataxonomica,geoportal,ultimafechaactualizacion,version,paisoriginal,estadooriginal,municipiooriginal,llavecontrolcambios,coordenadaobs,cuencahidrograficamapa,ecorregionterrestremapa)
 select e.llaveejemplar,
 concat(case when ro.paisoriginal='' then 'NO DISPONIBLE' else ro.paisoriginal end,
 case when ro.estadooriginal not in("","NO DISPONIBLE","UNKNOWN","ND","NO APLICA","NA","INFORMACION NO DISPONIBLE") then
-concat(" / ",ro.estadooriginal,case when ro.municipiooriginal not in ("","NO DISPONIBLE","UNKNOWN","ND","NO APLICA","NA","INFORMACION NO DISPONIBLE") then
-concat(" / ",ro.municipiooriginal) else '' end) 
+concat(" | ",ro.estadooriginal,case when ro.municipiooriginal not in ("","NO DISPONIBLE","UNKNOWN","ND","NO APLICA","NA","INFORMACION NO DISPONIBLE") then
+concat(" | ",ro.municipiooriginal) else '' end) 
 else case when ro.municipiooriginal not in ("","NO DISPONIBLE","UNKNOWN","ND","NO APLICA","NA","INFORMACION NO DISPONIBLE") then
-concat(" / NO DISPONIBLE / ",ro.municipiooriginal) else '' end end) as region,
+concat(" | NO DISPONIBLE | ",ro.municipiooriginal) else '' end end) as region,
 l.localidad,
 r.longitudconabio as longitud,
 r.latitudconabio as latitud,
@@ -608,6 +617,7 @@ r.usvsVI as usvserieVI,
 r.usvsVII as usvserieVII,
 ev.usvINEGI,
 vs.vegetacionserenanalcms,
+ev.tipovegetacion,
 a.idanpfederal1,
 a.idanpfederal2,
 case when rm.nombrepaismapa='MEXICO' then
@@ -778,7 +788,7 @@ pr.fuentegrafico,
 pr.formadecitar,
 pr.urlproyectoconabio,
 if(n.comentarioscat like '%Validado completamente%',n.categoriacatscat,if(n.comentarioscat like '%Falta validar taxón%',n.categoriaoriginalscat,'')) as categoriataxonomica,
-if(ig.llaveejemplar is null,false,if(n.grupo not in('virus','NO DISPONIBLE','Bacterias'),true,false)) as geoportal
+if(ig.llaveejemplar is null,false,if(n.grupo not in('virus','NO DISPONIBLE','Bacterias'),true,false)) as geoportal,
 case when e.ultimafechaactualizacion>=n.ultimafechaactualizacion then
 case when e.ultimafechaactualizacion>=r.ultimafechaactualizacion then e.ultimafechaactualizacion else r.ultimafechaactualizacion end else
 case when n.ultimafechaactualizacion>=r.ultimafechaactualizacion then n.ultimafechaactualizacion else r.ultimafechaactualizacion end end as ultimafechaactualizacion,
@@ -786,7 +796,10 @@ e.version as version,
 ro.paisoriginal,
 ro.estadooriginal,
 ro.municipiooriginal,
-'' as llavecontrolcambios
+'' as llavecontrolcambios,
+if(e.observacionusoinformacion like '%Coordenada obscurecida (http%',1,0) as coordenadaobs,
+'' as cuencahidrograficamapa,
+'' as ecorregionterrestremapa
 from snib.ejemplar_curatorial e inner join snib.proyecto pr on e.llaveproyecto=pr.llaveproyecto
 inner join snib.localidad l on e.idlocalidad=l.idlocalidad
 inner join snib.bufferporambiente ba on e.idbufferporambiente=ba.idbufferporambiente
@@ -815,6 +828,8 @@ inner join geoportal_trabajo.EjemplarColeccionNomComun ec on e.llaveejemplar=ec.
 inner join geoportal_trabajo.ejemplar_referenciatax er on e.llaveejemplar=er.llaveejemplar
 left join geoportal_trabajo.InformacionGeoportal ig on e.llaveejemplar=ig.llaveejemplar
 where e.estadoregistro='';
+
+-- Hace falta llenar los campos cuencas y ecorregiones
 
 -- Estas lineas se cambiaron de lugar para evitar regeneración de indices.
 
@@ -861,6 +876,42 @@ ADD KEY `idx_especie` (`especie`);
 update snib.informaciongeoportal_siya
 set geovalidacion=replace(geovalidacion,'95ig','1995ig')
 where geovalidacion like '%95ig%';
+
+-- Agreagdo el 2026-06-10 para eliminar información de los registros de especies sensibles.
+
+drop table if exists geoportal_trabajo.especies_sensibles;
+create temporary table geoportal_trabajo.especies_sensibles
+select llaveejemplar as idejemplar
+from snib.ejemplar_curatorial
+where idrestriccionejemplar=11 and estadoregistro='';
+
+alter table geoportal_trabajo.especies_sensibles add primary key(idejemplar);
+
+update snib.informaciongeoportal_siya i inner join geoportal_trabajo.especies_sensibles e using(idejemplar)
+set i.localidad='',
+i.longitud=null,
+i.latitud=null,
+i.datum='',
+i.idmunicipiomapa=null,
+i.clavemunicipiomapa='',
+i.municipiomapa='',
+i.mt24idmunicipiomapa=null,
+i.mt24clavemunicipiomapa='',
+i.mt24nombremunicipiomapa='',
+i.altitudmapa=null,
+i.mpiocodvalidacion=10,
+i.localidadcodvalidacion=10,
+i.municipiooriginal='',
+i.geovalidacion='Sin coordeandas',
+i.procesovalidacion='Sin coordenadas';
+
+update snib.informaciongeoportal_siya ro inner join geoportal_trabajo.especies_sensibles e using(idejemplar)
+set region=concat(case when ro.paisoriginal='' then 'NO DISPONIBLE' else ro.paisoriginal end,
+case when ro.estadooriginal not in("","NO DISPONIBLE","UNKNOWN","ND","NO APLICA","NA","INFORMACION NO DISPONIBLE") then
+concat(" | ",ro.estadooriginal,case when ro.municipiooriginal not in ("","NO DISPONIBLE","UNKNOWN","ND","NO APLICA","NA","INFORMACION NO DISPONIBLE") then
+concat(" | ",ro.municipiooriginal) else '' end) 
+else case when ro.municipiooriginal not in ("","NO DISPONIBLE","UNKNOWN","ND","NO APLICA","NA","INFORMACION NO DISPONIBLE") then
+concat(" | NO DISPONIBLE | ",ro.municipiooriginal) else '' end end);
 
 -- Modificamos campos especie, autor, estatustax, y categoriatax para atender lo indicado al final en el JIRA4721
 
@@ -1001,7 +1052,7 @@ where autorvalido in ('NO APLICA','NO DISPONIBLE','NO PROPORCIONADO','ND','NA','
 
 update snib.informaciongeoportal_siya
 set colector=''
-where colector in ('NO APLICA','NO DISPONIBLE','NO PROPORCIONADO','ND','NA','NP');
+where colector in ('NO APLICA','NO DISPONIBLE','NO PROPORCIONADO','ND','NA','NP','NO DISPONIBLE NO DISPONIBLE NO DISPONIBLE');
 
 update snib.informaciongeoportal_siya
 set determinador=''
@@ -1041,12 +1092,12 @@ where grupobio not in('virus','NO DISPONIBLE','Bacterias'); */
 -- generamos el campo llavecontrolcambios para revisar si hay cambios respecto a la versión anterior.
 
 update snib.informaciongeoportal_siya
-set llavecontrolcambios=MD5(CONCAT(region,localidad,if(longitud is null,'',longitud),if(latitud is null,'',latitud),datum,geovalidacion,paismapa,if(idestadomapa is null,'',idestadomapa),claveestadomapa,estadomapa,if(mt24idestadomapa is null,'',mt24idestadomapa),mt24claveestadomapa,mt24nombreestadomapa,if(idmunicipiomapa is null,'',idmunicipiomapa),clavemunicipiomapa,municipiomapa,if(mt24idmunicipiomapa is null,'',mt24idmunicipiomapa),mt24clavemunicipiomapa,mt24nombremunicipiomapa,if(incertidumbreXY is null,'',incertidumbreXY),if(altitudmapa is null,'',altitudmapa),usvserieI,usvserieII,usvserieIII,usvserieIV,usvserieV,usvserieVI,usvserieVII,usvINEGI,vegetacionserenanalcms,if(idanpfederal1 is null,'',idanpfederal1),if(idanpfederal2 is null,'',idanpfederal2),anp,grupobio,subgrupobio,formadecrecimiento,idnombrecatvalido,idnombrecat,endemismo,ambiente,validacionambiente,reino,phylumdivision,clase,orden,familia,genero,especie,calificadordeterminacion,categoriainfraespecie,categoriainfraespecie2,autor,estatustax,reftax,taxonvalidado,reinovalido,phylumdivisionvalido,clasevalida,ordenvalido,familiavalida,generovalido,especievalida,categoriainfraespecievalida,categoriainfraespecie2valida,especievalidabusqueda,autorvalido,reftaxvalido,categoriavalidocatscat,nombrevalidocatscat,taxonextinto,ejemplarfosil,nombrecomun,categoriaresidenciaaves,prioritaria,nivelprioridad,exoticainvasora,nom059,cites,iucn,coleccion,institucion,paiscoleccion,numcatalogo,numcolecta,procedenciaejemplar,determinador,fechadeterminacion,if(diadeterminacion is null,'',diadeterminacion),if(mesdeterminacion is null,'',mesdeterminacion),if(aniodeterminacion is null,'',aniodeterminacion),colector,fechacolecta,if(diacolecta is null,'',diacolecta),if(mescolecta is null,'',mescolecta),if(aniocolecta is null,'',aniocolecta),tipo,obsusoinfo,probablelocnodecampo,zonamapa,if(paiscodvalidacion is null,'',paiscodvalidacion),if(localidadcodvalidacion is null,'',localidadcodvalidacion),if(edocodvalidacion is null,'',edocodvalidacion),if(mpiocodvalidacion is null,'',mpiocodvalidacion),proyecto,clavebasedatos,identificacionarchivo,fuenteoriginal,urlejemplar,urlorigen,licenciauso,tiporestriccion,comentarioscat,comentarioscatvalido,homonimosgenero,homonimosespecie,homonimosinfraespecie,homonimosgenerocatvalido,homonimosespeciecatvalido,homonimosinfraespeciecatvalido,distribucionnom2010,idmias,regionmarinamapa,nombrerasgogeograficomapa,tiporasgogeograficomapa,mt24mapa,noaplicavegetacionmapa,if(distmpio is null,'',distmpio),if(codificacion is null,'',codificacion),procesovalidacion,estadoregistro,fuente,formadecitar,urlproyecto,categoriataxonomica,geoportal));
+set llavecontrolcambios=MD5(CONCAT(region,localidad,if(longitud is null,'',longitud),if(latitud is null,'',latitud),datum,geovalidacion,paismapa,if(idestadomapa is null,'',idestadomapa),claveestadomapa,estadomapa,if(mt24idestadomapa is null,'',mt24idestadomapa),mt24claveestadomapa,mt24nombreestadomapa,if(idmunicipiomapa is null,'',idmunicipiomapa),clavemunicipiomapa,municipiomapa,if(mt24idmunicipiomapa is null,'',mt24idmunicipiomapa),mt24clavemunicipiomapa,mt24nombremunicipiomapa,if(incertidumbreXY is null,'',incertidumbreXY),if(altitudmapa is null,'',altitudmapa),usvserieI,usvserieII,usvserieIII,usvserieIV,usvserieV,usvserieVI,usvserieVII,usvINEGI,vegetacionserenanalcms,tipovegetacion,if(idanpfederal1 is null,'',idanpfederal1),if(idanpfederal2 is null,'',idanpfederal2),anp,grupobio,subgrupobio,formadecrecimiento,idnombrecatvalido,idnombrecat,endemismo,ambiente,validacionambiente,reino,phylumdivision,clase,orden,familia,genero,especie,calificadordeterminacion,categoriainfraespecie,categoriainfraespecie2,autor,estatustax,reftax,taxonvalidado,reinovalido,phylumdivisionvalido,clasevalida,ordenvalido,familiavalida,generovalido,especievalida,categoriainfraespecievalida,categoriainfraespecie2valida,especievalidabusqueda,autorvalido,reftaxvalido,categoriavalidocatscat,nombrevalidocatscat,taxonextinto,ejemplarfosil,nombrecomun,categoriaresidenciaaves,prioritaria,nivelprioridad,exoticainvasora,nom059,cites,iucn,coleccion,institucion,paiscoleccion,numcatalogo,numcolecta,procedenciaejemplar,determinador,fechadeterminacion,if(diadeterminacion is null,'',diadeterminacion),if(mesdeterminacion is null,'',mesdeterminacion),if(aniodeterminacion is null,'',aniodeterminacion),colector,fechacolecta,if(diacolecta is null,'',diacolecta),if(mescolecta is null,'',mescolecta),if(aniocolecta is null,'',aniocolecta),tipo,obsusoinfo,probablelocnodecampo,zonamapa,if(paiscodvalidacion is null,'',paiscodvalidacion),if(localidadcodvalidacion is null,'',localidadcodvalidacion),if(edocodvalidacion is null,'',edocodvalidacion),if(mpiocodvalidacion is null,'',mpiocodvalidacion),proyecto,clavebasedatos,identificacionarchivo,fuenteoriginal,urlejemplar,urlorigen,licenciauso,tiporestriccion,comentarioscat,comentarioscatvalido,homonimosgenero,homonimosespecie,homonimosinfraespecie,homonimosgenerocatvalido,homonimosespeciecatvalido,homonimosinfraespeciecatvalido,distribucionnom2010,idmias,regionmarinamapa,nombrerasgogeograficomapa,tiporasgogeograficomapa,mt24mapa,noaplicavegetacionmapa,if(distmpio is null,'',distmpio),if(codificacion is null,'',codificacion),procesovalidacion,estadoregistro,fuente,formadecitar,urlproyecto,categoriataxonomica,geoportal));
 
 -- Agregamos al histórico de cambios los registros con cambio en algún campo.
 
-insert into dwh.H_informaciongeoportal_siya(idejemplar,region,localidad,longitud,latitud,datum,geovalidacion,paismapa,idestadomapa,claveestadomapa,estadomapa,mt24idestadomapa,mt24claveestadomapa,mt24nombreestadomapa,idmunicipiomapa,clavemunicipiomapa,municipiomapa,mt24idmunicipiomapa,mt24clavemunicipiomapa,mt24nombremunicipiomapa,incertidumbreXY,altitudmapa,usvserieI,usvserieII,usvserieIII,usvserieIV,usvserieV,usvserieVI,usvserieVII,usvINEGI,vegetacionserenanalcms,idanpfederal1,idanpfederal2,anp,grupobio,subgrupobio,formadecrecimiento,idnombrecatvalido,idnombrecat,endemismo,ambiente,validacionambiente,reino,phylumdivision,clase,orden,familia,genero,especie,calificadordeterminacion,categoriainfraespecie,categoriainfraespecie2,autor,estatustax,reftax,taxonvalidado,reinovalido,phylumdivisionvalido,clasevalida,ordenvalido,familiavalida,generovalido,especievalida,categoriainfraespecievalida,categoriainfraespecie2valida,especievalidabusqueda,autorvalido,reftaxvalido,categoriavalidocatscat,nombrevalidocatscattaxonextinto,ejemplarfosil,nombrecomun,categoriaresidenciaaves,prioritaria,nivelprioridad,exoticainvasora,nom059,cites,iucn,coleccion,institucion,paiscoleccion,numcatalogo,numcolecta,procedenciaejemplar,determinador,fechadeterminacion,diadeterminacion,mesdeterminacion,aniodeterminacion,colector,fechacolecta,diacolecta,mescolecta,aniocolecta,tipo,obsusoinfo,probablelocnodecampo,zonamapa,paiscodvalidacion,localidadcodvalidacion,edocodvalidacion,mpiocodvalidacion,cuarentena,proyecto,clavebasedatos,identificacionarchivo,fuenteoriginal,urlejemplar,urlorigen,licenciauso,tiporestriccion,comentarioscat,comentarioscatvalido,homonimosgenero,homonimosespecie,homonimosinfraespecie,homonimosgenerocatvalido,homonimosespeciecatvalido,homonimosinfraespeciecatvalido,distribucionnom2010,idmias,regionmarinamapa,nombrerasgogeograficomapa,tiporasgogeograficomapa,mt24mapa,noaplicavegetacionmapa,distmpio,codificacion,procesovalidacion,estadoregistro,fuente,formadecitar,urlproyecto,categoriataxonomica,geoportal,ultimafechaactualizacion,version,llavecontrolcambios)
-select ih.idejemplar,ih.region,ih.localidad,ih.longitud,ih.latitud,ih.datum,ih.geovalidacion,ih.paismapa,ih.idestadomapa,ih.claveestadomapa,ih.estadomapa,ih.mt24idestadomapa,ih.mt24claveestadomapa,ih.mt24nombreestadomapa,ih.idmunicipiomapa,ih.clavemunicipiomapa,ih.municipiomapa,ih.mt24idmunicipiomapa,ih.mt24clavemunicipiomapa,ih.mt24nombremunicipiomapa,ih.incertidumbreXY,ih.altitudmapa,ih.usvserieI,ih.usvserieII,ih.usvserieIII,ih.usvserieIV,ih.usvserieV,ih.usvserieVI,ih.usvserieVII,ih.usvINEGI,ih.vegetacionserenanalcms,ih.idanpfederal1,ih.idanpfederal2,ih.anp,ih.grupobio,ih.subgrupobio,ih.formadecrecimiento,ih.idnombrecatvalido,ih.idnombrecat,ih.endemismo,ih.ambiente,ih.validacionambiente,ih.reino,ih.phylumdivision,ih.clase,ih.orden,ih.familia,ih.genero,ih.especie,ih.calificadordeterminacion,ih.categoriainfraespecie,ih.categoriainfraespecie2,ih.autor,ih.estatustax,ih.reftax,ih.taxonvalidado,ih.reinovalido,ih.phylumdivisionvalido,ih.clasevalida,ih.ordenvalido,ih.familiavalida,ih.generovalido,ih.especievalida,ih.categoriainfraespecievalida,ih.categoriainfraespecie2valida,ih.especievalidabusqueda,ih.autorvalido,ih.reftaxvalido,ih.categoriavalidocatscat,ih.nombrevalidocatscat,ih.taxonextinto,ih.ejemplarfosil,ih.nombrecomun,ih.categoriaresidenciaaves,ih.prioritaria,ih.nivelprioridad,ih.exoticainvasora,ih.nom059,ih.cites,ih.iucn,ih.coleccion,ih.institucion,ih.paiscoleccion,ih.numcatalogo,ih.numcolecta,ih.procedenciaejemplar,ih.determinador,ih.fechadeterminacion,ih.diadeterminacion,ih.mesdeterminacion,ih.aniodeterminacion,ih.colector,ih.fechacolecta,ih.diacolecta,ih.mescolecta,ih.aniocolecta,ih.tipo,ih.obsusoinfo,ih.probablelocnodecampo,ih.zonamapa,ih.paiscodvalidacion,ih.localidadcodvalidacion,ih.edocodvalidacion,ih.mpiocodvalidacion,ih.cuarentena,ih.proyecto,ih.clavebasedatos,ih.identificacionarchivo,ih.fuenteoriginal,ih.urlejemplar,ih.urlorigen,ih.licenciauso,ih.tiporestriccion,ih.comentarioscat,ih.comentarioscatvalido,ih.homonimosgenero,ih.homonimosespecie,ih.homonimosinfraespecie,ih.homonimosgenerocatvalido,ih.homonimosespeciecatvalido,ih.homonimosinfraespeciecatvalido,ih.distribucionnom2010,ih.idmias,ih.regionmarinamapa,ih.nombrerasgogeograficomapa,ih.tiporasgogeograficomapa,ih.mt24mapa,ih.noaplicavegetacionmapa,ih.distmpio,ih.codificacion,ih.procesovalidacion,ih.estadoregistro,ih.fuente,ih.formadecitar,ih.urlproyecto,ih.categoriataxonomica,ih.geoportal,ih.ultimafechaactualizacion,ih.version,ih.llavecontrolcambios
+insert into dwh.H_informaciongeoportal_siya(idejemplar,region,localidad,longitud,latitud,datum,geovalidacion,paismapa,idestadomapa,claveestadomapa,estadomapa,mt24idestadomapa,mt24claveestadomapa,mt24nombreestadomapa,idmunicipiomapa,clavemunicipiomapa,municipiomapa,mt24idmunicipiomapa,mt24clavemunicipiomapa,mt24nombremunicipiomapa,incertidumbreXY,altitudmapa,usvserieI,usvserieII,usvserieIII,usvserieIV,usvserieV,usvserieVI,usvserieVII,usvINEGI,vegetacionserenanalcms,tipovegetacion,idanpfederal1,idanpfederal2,anp,grupobio,subgrupobio,formadecrecimiento,idnombrecatvalido,idnombrecat,endemismo,ambiente,validacionambiente,reino,phylumdivision,clase,orden,familia,genero,especie,calificadordeterminacion,categoriainfraespecie,categoriainfraespecie2,autor,estatustax,reftax,taxonvalidado,reinovalido,phylumdivisionvalido,clasevalida,ordenvalido,familiavalida,generovalido,especievalida,categoriainfraespecievalida,categoriainfraespecie2valida,especievalidabusqueda,autorvalido,reftaxvalido,categoriavalidocatscat,nombrevalidocatscattaxonextinto,ejemplarfosil,nombrecomun,categoriaresidenciaaves,prioritaria,nivelprioridad,exoticainvasora,nom059,cites,iucn,coleccion,institucion,paiscoleccion,numcatalogo,numcolecta,procedenciaejemplar,determinador,fechadeterminacion,diadeterminacion,mesdeterminacion,aniodeterminacion,colector,fechacolecta,diacolecta,mescolecta,aniocolecta,tipo,obsusoinfo,probablelocnodecampo,zonamapa,paiscodvalidacion,localidadcodvalidacion,edocodvalidacion,mpiocodvalidacion,cuarentena,proyecto,clavebasedatos,identificacionarchivo,fuenteoriginal,urlejemplar,urlorigen,licenciauso,tiporestriccion,comentarioscat,comentarioscatvalido,homonimosgenero,homonimosespecie,homonimosinfraespecie,homonimosgenerocatvalido,homonimosespeciecatvalido,homonimosinfraespeciecatvalido,distribucionnom2010,idmias,regionmarinamapa,nombrerasgogeograficomapa,tiporasgogeograficomapa,mt24mapa,noaplicavegetacionmapa,distmpio,codificacion,procesovalidacion,estadoregistro,fuente,formadecitar,urlproyecto,categoriataxonomica,geoportal,ultimafechaactualizacion,version,llavecontrolcambios)
+select ih.idejemplar,ih.region,ih.localidad,ih.longitud,ih.latitud,ih.datum,ih.geovalidacion,ih.paismapa,ih.idestadomapa,ih.claveestadomapa,ih.estadomapa,ih.mt24idestadomapa,ih.mt24claveestadomapa,ih.mt24nombreestadomapa,ih.idmunicipiomapa,ih.clavemunicipiomapa,ih.municipiomapa,ih.mt24idmunicipiomapa,ih.mt24clavemunicipiomapa,ih.mt24nombremunicipiomapa,ih.incertidumbreXY,ih.altitudmapa,ih.usvserieI,ih.usvserieII,ih.usvserieIII,ih.usvserieIV,ih.usvserieV,ih.usvserieVI,ih.usvserieVII,ih.usvINEGI,ih.vegetacionserenanalcms,ih.tipovegetacion,ih.idanpfederal1,ih.idanpfederal2,ih.anp,ih.grupobio,ih.subgrupobio,ih.formadecrecimiento,ih.idnombrecatvalido,ih.idnombrecat,ih.endemismo,ih.ambiente,ih.validacionambiente,ih.reino,ih.phylumdivision,ih.clase,ih.orden,ih.familia,ih.genero,ih.especie,ih.calificadordeterminacion,ih.categoriainfraespecie,ih.categoriainfraespecie2,ih.autor,ih.estatustax,ih.reftax,ih.taxonvalidado,ih.reinovalido,ih.phylumdivisionvalido,ih.clasevalida,ih.ordenvalido,ih.familiavalida,ih.generovalido,ih.especievalida,ih.categoriainfraespecievalida,ih.categoriainfraespecie2valida,ih.especievalidabusqueda,ih.autorvalido,ih.reftaxvalido,ih.categoriavalidocatscat,ih.nombrevalidocatscat,ih.taxonextinto,ih.ejemplarfosil,ih.nombrecomun,ih.categoriaresidenciaaves,ih.prioritaria,ih.nivelprioridad,ih.exoticainvasora,ih.nom059,ih.cites,ih.iucn,ih.coleccion,ih.institucion,ih.paiscoleccion,ih.numcatalogo,ih.numcolecta,ih.procedenciaejemplar,ih.determinador,ih.fechadeterminacion,ih.diadeterminacion,ih.mesdeterminacion,ih.aniodeterminacion,ih.colector,ih.fechacolecta,ih.diacolecta,ih.mescolecta,ih.aniocolecta,ih.tipo,ih.obsusoinfo,ih.probablelocnodecampo,ih.zonamapa,ih.paiscodvalidacion,ih.localidadcodvalidacion,ih.edocodvalidacion,ih.mpiocodvalidacion,ih.cuarentena,ih.proyecto,ih.clavebasedatos,ih.identificacionarchivo,ih.fuenteoriginal,ih.urlejemplar,ih.urlorigen,ih.licenciauso,ih.tiporestriccion,ih.comentarioscat,ih.comentarioscatvalido,ih.homonimosgenero,ih.homonimosespecie,ih.homonimosinfraespecie,ih.homonimosgenerocatvalido,ih.homonimosespeciecatvalido,ih.homonimosinfraespeciecatvalido,ih.distribucionnom2010,ih.idmias,ih.regionmarinamapa,ih.nombrerasgogeograficomapa,ih.tiporasgogeograficomapa,ih.mt24mapa,ih.noaplicavegetacionmapa,ih.distmpio,ih.codificacion,ih.procesovalidacion,ih.estadoregistro,ih.fuente,ih.formadecitar,ih.urlproyecto,ih.categoriataxonomica,ih.geoportal,ih.ultimafechaactualizacion,ih.version,ih.llavecontrolcambios
 from snib.informaciongeoportal_siyahistorico ih inner join snib.informaciongeoportal_siya i on ih.idejemplar=i.idejemplar
 where ih.llavecontrolcambios<>i.llavecontrolcambios;
 
