@@ -903,7 +903,8 @@ i.mpiocodvalidacion=10,
 i.localidadcodvalidacion=10,
 i.municipiooriginal='',
 i.geovalidacion='Sin coordeandas',
-i.procesovalidacion='Sin coordenadas';
+i.procesovalidacion='Sin coordenadas',
+i.geoportal=false;
 
 update snib.informaciongeoportal_siya ro inner join geoportal_trabajo.especies_sensibles e using(idejemplar)
 set region=concat(case when ro.paisoriginal='' then 'NO DISPONIBLE' else ro.paisoriginal end,
