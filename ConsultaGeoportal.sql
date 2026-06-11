@@ -902,7 +902,7 @@ i.altitudmapa=null,
 i.mpiocodvalidacion=10,
 i.localidadcodvalidacion=10,
 i.municipiooriginal='',
-i.geovalidacion='Sin coordeandas',
+i.geovalidacion='Sin coordenadas',
 i.procesovalidacion='Sin coordenadas',
 i.geoportal=false;
 
